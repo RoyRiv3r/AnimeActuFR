@@ -1,0 +1,201 @@
+body {
+  font-family: "Roboto", sans-serif;
+  width: 600px;
+  padding: 15px;
+  background-color: #121212;
+  color: #f5f5f5;
+}
+
+h1 {
+  font-size: 24px;
+  margin-bottom: 15px;
+  text-align: center;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+}
+
+.article {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  background-color: #1e1e1e;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  margin-bottom: 15px;
+  overflow: hidden;
+  transition: transform 0.3s ease;
+}
+
+.article:hover {
+  transform: scale(1.02);
+}
+
+.article a {
+  display: flex;
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+}
+
+.article-image {
+  flex: 0 0 200px;
+  position: relative;
+  overflow: hidden;
+}
+
+.article-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.article-content {
+  flex: 1;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+.article-content h2 {
+  font-size: 18px;
+  margin-bottom: 8px;
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.3);
+}
+
+.article-content .meta {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 8px;
+}
+
+.article-content p {
+  font-size: 14px;
+  color: #ccc;
+  line-height: 1.5;
+}
+
+.loading {
+  text-align: center;
+  font-size: 18px;
+  padding: 30px;
+  color: #fff;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+}
+
+.show-more {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+  color: #fff;
+  background-color: #4caf50;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 20px;
+}
+
+.show-more:hover {
+  background-color: #45a049;
+}
+
+.show-more:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.4);
+}
+
+#settings-panel {
+  position: relative;
+  margin-bottom: 20px;
+  background-color: #1e1e1e;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  transition: height 0.3s ease;
+}
+
+#settings-panel.collapsed {
+  height: 40px;
+}
+
+#settings-panel.expanded {
+  height: auto;
+}
+
+#settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: #333;
+  color: #fff;
+  cursor: pointer;
+}
+
+#settings-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+#toggle-settings {
+  width: 20px;
+  height: 20px;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  background-image: url("cogwheel.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 16px;
+  transition: transform 0.3s ease;
+}
+
+#toggle-settings:hover {
+  transform: rotate(45deg);
+}
+
+#settings-content {
+  padding: 10px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.settings-row label {
+  margin-right: 10px;
+  font-size: 14px;
+}
+
+.settings-row input[type="number"] {
+  width: 40px;
+  padding: 3px;
+  border-radius: 4px;
+  border: none;
+  margin-right: 10px;
+}
+
+#save-settings {
+  padding: 5px 10px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #fff;
+  background-color: #4caf50;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+#save-settings:hover {
+  background-color: #45a049;
+}
+
+#save-settings:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.4);
+}
