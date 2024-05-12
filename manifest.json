@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "Anime Actu FR",
   "author": "RoyRiv3r",
-  "version": "2.5",
+  "version": "2.7.1",
   "description": "Extrait les infos depuis les sites web Animotaku, Planète BD Manga et Adala-News à la recherche de nouveaux articles et les affiche dans la fenêtre contextuelle.",
   "icons": {
     "16": "icons/icon16.png",
@@ -24,6 +24,12 @@
   },
 
   "background": {
-    "scripts": ["background.js"]
+    "scripts": ["background.js", "utils.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "addon@example.com",
+      "strict_min_version": "57.0"
+    }
   }
 }
