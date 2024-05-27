@@ -18,11 +18,97 @@ browser.storage.onChanged.addListener((changes, area) => {
 
 let lastFetchTime = {};
 
-browser.storage.local.get("lastFetchTime").then((data) => {
-  if (data.lastFetchTime) {
-    lastFetchTime = data.lastFetchTime;
+async function openIndexedDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("newsDB", 1);
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains("articles")) {
+        db.createObjectStore("articles", {
+          keyPath: "id",
+          autoIncrement: true,
+        });
+      }
+      if (!db.objectStoreNames.contains("lastFetchTime")) {
+        db.createObjectStore("lastFetchTime", { keyPath: "source" });
+      }
+    };
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result);
+    };
+
+    request.onerror = (event) => {
+      reject(event.target.error);
+    };
+  });
+}
+
+async function saveLastFetchTimeToCache(lastFetchTime) {
+  const db = await openIndexedDB();
+  const transaction = db.transaction("lastFetchTime", "readwrite");
+  const store = transaction.objectStore("lastFetchTime");
+
+  for (const [source, date] of Object.entries(lastFetchTime)) {
+    store.put({ source, date });
   }
-});
+
+  return transaction.complete;
+}
+
+async function getLastFetchTimeFromCache() {
+  const db = await openIndexedDB();
+  const transaction = db.transaction("lastFetchTime", "readonly");
+  const store = transaction.objectStore("lastFetchTime");
+
+  return new Promise((resolve, reject) => {
+    const request = store.getAll();
+
+    request.onsuccess = (event) => {
+      const result = event.target.result;
+      const lastFetchTime = {};
+      result.forEach((item) => {
+        lastFetchTime[item.source] = item.date;
+      });
+      resolve(lastFetchTime);
+    };
+
+    request.onerror = (event) => {
+      reject(event.target.error);
+    };
+  });
+}
+
+async function saveArticlesToCache(articles) {
+  const db = await openIndexedDB();
+  const transaction = db.transaction("articles", "readwrite");
+  const store = transaction.objectStore("articles");
+
+  articles.forEach((article) => {
+    store.put(article);
+  });
+
+  return transaction.complete;
+}
+
+async function getArticlesFromCache() {
+  const db = await openIndexedDB();
+  const transaction = db.transaction("articles", "readonly");
+  const store = transaction.objectStore("articles");
+
+  return new Promise((resolve, reject) => {
+    const request = store.getAll();
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result);
+    };
+
+    request.onerror = (event) => {
+      reject(event.target.error);
+    };
+  });
+}
 
 async function checkForNewArticles() {
   console.log("Checking for new articles...");
@@ -74,11 +160,13 @@ async function checkForNewArticles() {
 
   // Save the updated articles to the cache
   try {
-    await browser.storage.local.set({ cachedArticles: allArticles });
+    await saveArticlesToCache(allArticles);
     console.log("Cached articles updated.");
   } catch (error) {
     console.error("Error saving cached articles:", error);
   }
+
+  const lastFetchTime = await getLastFetchTimeFromCache();
 
   const newArticles = allArticles.filter((article) => {
     const lastFetchTimeForSource = lastFetchTime[article.source];
@@ -91,7 +179,6 @@ async function checkForNewArticles() {
   const latestNewArticles = newArticles.slice(0, settings.notificationCount);
 
   // Update the badge count
-
   await updateBadgeCount(newArticles.length);
 
   const { enableNotifications } = await browser.storage.sync.get({
@@ -119,7 +206,7 @@ async function checkForNewArticles() {
   }
 
   try {
-    browser.storage.local.set({ lastFetchTime });
+    await saveLastFetchTimeToCache(lastFetchTime);
   } catch (error) {
     console.error("Error saving lastFetchTime:", error);
   }
@@ -211,4 +298,4 @@ browser.runtime.onMessage.addListener((message) => {
   }
 });
 
-checkForNewArticles();
+// checkForNewArticles();

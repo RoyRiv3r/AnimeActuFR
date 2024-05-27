@@ -57,14 +57,157 @@ async function loadSettings() {
   }
 }
 
-function saveArticlesToCache(articles) {
-  localStorage.setItem("cachedArticles", JSON.stringify(articles));
+function openIndexedDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("newsDB", 1);
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains("articles")) {
+        db.createObjectStore("articles", {
+          keyPath: "id",
+          autoIncrement: true,
+        });
+      }
+    };
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result);
+    };
+
+    request.onerror = (event) => {
+      reject(event.target.error);
+    };
+  });
 }
 
-function getArticlesFromCache() {
-  const cachedArticles = localStorage.getItem("cachedArticles");
-  return cachedArticles ? JSON.parse(cachedArticles) : null;
+async function saveArticlesToCache(articles) {
+  const db = await openIndexedDB();
+  const transaction = db.transaction("articles", "readwrite");
+  const store = transaction.objectStore("articles");
+
+  articles.forEach((article) => {
+    store.put(article);
+  });
+
+  return transaction.complete;
 }
+
+async function getArticlesFromCache() {
+  const db = await openIndexedDB();
+  const transaction = db.transaction("articles", "readonly");
+  const store = transaction.objectStore("articles");
+
+  return new Promise((resolve, reject) => {
+    const request = store.getAll();
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result);
+    };
+
+    request.onerror = (event) => {
+      reject(event.target.error);
+    };
+  });
+}
+
+function addArticleToLateralPanel(article) {
+  const savedArticles = JSON.parse(localStorage.getItem("savedArticles")) || [];
+  if (
+    !savedArticles.some((savedArticle) => savedArticle.link === article.link)
+  ) {
+    savedArticles.push(article);
+    localStorage.setItem("savedArticles", JSON.stringify(savedArticles));
+    displaySavedArticles();
+    showSuccessToast("Article ajouté aux favoris");
+  } else {
+    showFailureToast("L'article est déjà dans les favoris");
+  }
+}
+
+function removeArticleFromLateralPanel(article) {
+  const savedArticles = JSON.parse(localStorage.getItem("savedArticles")) || [];
+  const updatedArticles = savedArticles.filter(
+    (savedArticle) => savedArticle.link !== article.link
+  );
+  localStorage.setItem("savedArticles", JSON.stringify(updatedArticles));
+  displaySavedArticles();
+}
+
+function displaySavedArticles() {
+  const savedArticlesContainer = document.getElementById("saved-articles");
+  const savedArticles = JSON.parse(localStorage.getItem("savedArticles")) || [];
+
+  savedArticlesContainer.innerHTML = savedArticles
+    .map(
+      (article) => `
+        <div class="saved-article">
+          <img src="${article.thumbnail}" alt="${article.title}">
+          <div class="saved-article-content">
+            <h3>${article.title}</h3>
+            <p class="meta">${formatDate(article.date)}</p>
+            <p>${article.excerpt}</p>
+          </div>
+          <button class="remove-article" data-link="${
+            article.link
+          }">Supprimer</button>
+        </div>
+      `
+    )
+    .join("");
+
+  savedArticlesContainer
+    .querySelectorAll(".remove-article")
+    .forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const link = button.dataset.link;
+        const article = savedArticles.find(
+          (savedArticle) => savedArticle.link === link
+        );
+        removeArticleFromLateralPanel(article);
+      });
+    });
+
+  savedArticlesContainer
+    .querySelectorAll(".saved-article")
+    .forEach((savedArticle) => {
+      savedArticle.addEventListener("click", () => {
+        const link = savedArticle.querySelector(".remove-article").dataset.link;
+        window.open(link, "_blank");
+      });
+    });
+}
+
+function toggleLateralPanel(event) {
+  const lateralPanel = document.getElementById("lateral-panel");
+  const toggleButton = document.getElementById("toggle-lateral-panel");
+
+  if (
+    event &&
+    !lateralPanel.contains(event.target) &&
+    event.target !== toggleButton
+  ) {
+    lateralPanel.classList.remove("expanded");
+    lateralPanel.classList.add("collapsed");
+  } else {
+    lateralPanel.classList.toggle("collapsed");
+    lateralPanel.classList.toggle("expanded");
+  }
+}
+
+document
+  .getElementById("toggle-lateral-panel")
+  .addEventListener("click", (event) => toggleLateralPanel(event));
+
+document.addEventListener("click", (event) => {
+  const lateralPanel = document.getElementById("lateral-panel");
+  const toggleButton = document.getElementById("toggle-lateral-panel");
+
+  if (!lateralPanel.contains(event.target) && event.target !== toggleButton) {
+    toggleLateralPanel(event);
+  }
+});
 
 async function fetchLatestArticles() {
   const [animotakuArticles, adalaArticles, planeteBDArticles] =
@@ -124,9 +267,7 @@ async function filterArticlesBySettings(articles) {
 
 async function displayNews(startIndex = 0, count = 20) {
   try {
-    const { cachedArticles } = await browser.storage.local.get(
-      "cachedArticles"
-    );
+    const cachedArticles = await getArticlesFromCache();
 
     if (!cachedArticles || cachedArticles.length === 0) {
       const articlesContainer = document.getElementById("articles");
@@ -165,9 +306,10 @@ async function displayNews(startIndex = 0, count = 20) {
 
 function createArticleElement(article) {
   const formattedDate = formatDate(article.date);
+  const escapedArticleJSON = JSON.stringify(article).replace(/'/g, "&#39;");
 
   return `
-    <div class="article">
+    <div class="article" data-source="${article.source}">
       <a href="${article.link}" target="_blank">
         <div class="article-image">
           <img src="placeholder.jpg" data-src="${article.thumbnail}" alt="${
@@ -182,9 +324,43 @@ function createArticleElement(article) {
           <p>${article.excerpt}</p>
         </div>
       </a>
+      <button class="add-to-lateral-panel" data-article='${escapedArticleJSON}' title="Ajouter au favoris"></button>
     </div>
   `;
 }
+
+function showToast(message, type) {
+  const toast = document.createElement("div");
+  toast.textContent = message;
+  toast.classList.add("toast", type);
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add("show");
+  }, 100);
+
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  }, 3000);
+}
+
+function showSuccessToast(message) {
+  showToast(message, "success");
+}
+
+function showFailureToast(message) {
+  showToast(message, "failure");
+}
+
+document.addEventListener("click", (event) => {
+  if (event.target.classList.contains("add-to-lateral-panel")) {
+    const article = JSON.parse(event.target.dataset.article);
+    addArticleToLateralPanel(article);
+  }
+});
 
 function formatDate(dateString) {
   const date = new Date(dateString);
@@ -213,15 +389,17 @@ function lazyLoadImages() {
 browser.runtime.onMessage.addListener((message) => {
   if (message.action === "updateArticles") {
     const newArticles = message.articles;
-    const cachedArticles = getArticlesFromCache() || [];
-    const updatedArticles = [...newArticles, ...cachedArticles];
-    saveArticlesToCache(updatedArticles);
-    displayNews();
+    getArticlesFromCache().then((cachedArticles) => {
+      const updatedArticles = [...newArticles, ...cachedArticles];
+      saveArticlesToCache(updatedArticles);
+      displayNews();
+    });
   }
 });
 
 document.addEventListener("DOMContentLoaded", () => {
   browser.runtime.sendMessage({ action: "resetBadgeCount" });
+  displaySavedArticles();
 });
 
 function toggleSettingsPanel() {

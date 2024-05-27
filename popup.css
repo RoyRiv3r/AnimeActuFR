@@ -42,6 +42,10 @@ h1 {
   overflow: hidden;
 }
 
+.article[data-source="Planète BD"] .article-image {
+  flex: 0 0 150px;
+}
+
 .article-image img {
   width: 100%;
   height: 100%;
@@ -145,13 +149,12 @@ h1 {
   background-color: transparent;
   border: none;
   cursor: pointer;
-  background-image: url("cogwheel.svg");
+  /* background-image: url("bookmark.svg"); */
   background-repeat: no-repeat;
   background-position: center;
   background-size: 16px;
   transition: transform 0.3s ease;
 }
-
 #toggle-settings:hover {
   transform: rotate(45deg);
 }
@@ -198,4 +201,144 @@ h1 {
 #save-settings:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.4);
+}
+
+#lateral-panel {
+  position: fixed;
+  top: 0;
+  right: -320px;
+  width: 300px;
+  height: 100%;
+  background-color: #1e1e1e;
+  transition: right 0.3s ease;
+  overflow-y: auto;
+  padding: 15px;
+  z-index: 1000;
+}
+
+#lateral-panel.expanded {
+  right: 0;
+}
+
+.saved-article {
+  background-color: #333;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.saved-article img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  margin-right: 10px;
+  border-radius: 4px;
+}
+
+.saved-article-content {
+  flex: 1;
+}
+
+.saved-article h3 {
+  margin: 0;
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+.saved-article .meta {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 5px;
+}
+
+.saved-article p {
+  font-size: 12px;
+  color: #ccc;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.remove-article {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 12px;
+  margin-left: 10px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+#toggle-lateral-panel {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  background-color: #4caf50;
+  border: none;
+  cursor: pointer;
+  background-image: url("bookmark.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 20px;
+  border-radius: 50%;
+  z-index: 1001;
+}
+
+.article {
+  position: relative;
+}
+.add-to-lateral-panel {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  background-color: #4caf50;
+  border: none;
+  cursor: pointer;
+  background-image: url("bookmark.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 20px;
+  border-radius: 50%;
+  z-index: 1;
+  transition: transform 0.3s ease;
+}
+
+.add-to-lateral-panel:hover {
+  transform: scale(1.1);
+}
+
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 1000;
+}
+
+.toast.show {
+  opacity: 1;
+}
+
+.toast.success {
+  background-color: #4caf50;
+  color: white;
+}
+
+.toast.failure {
+  background-color: #f44336;
+  color: white;
 }
