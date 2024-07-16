@@ -7,16 +7,107 @@ async function fetchNews(source, url, selector, mapper) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(data, "text/html");
     const articles = Array.from(doc.querySelectorAll(selector));
-    return articles.map(mapper).filter((article) => article !== null);
+    const fetchTime = new Date();
+
+    const mappedArticles = articles
+      .map((article) => mapper(article, fetchTime))
+      .filter((article) => article !== null);
+
+    console.log(`Fetched ${mappedArticles.length} articles from ${source}`);
+    return mappedArticles;
   } catch (error) {
     console.error(`Error fetching ${source} news:`, error);
     return [];
   }
 }
 
+async function fetchRSSFeed(url) {
+  try {
+    const response = await fetch(url);
+    const xmlText = await response.text();
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+    const items = xmlDoc.querySelectorAll("item");
+
+    return Array.from(items)
+      .map((item) => {
+        const getElementText = (selector) => {
+          const element = item.querySelector(selector);
+          return element ? element.textContent : "";
+        };
+
+        return {
+          title: getElementText("title"),
+          link: getElementText("link"),
+          pubDate: new Date(getElementText("pubDate")),
+          creator: getElementText("dc\\:creator") || getElementText("author"),
+          category: Array.from(item.querySelectorAll("category")).map(
+            (cat) => cat.textContent
+          ),
+          guid: getElementText("guid"),
+          description: getElementText("description"),
+        };
+      })
+      .filter((item) => item.title && item.link);
+  } catch (error) {
+    console.error("Error fetching RSS feed:", error);
+    return [];
+  }
+}
+
+function getAnimotakuDate(dateString, fetchTime) {
+  try {
+    const [day, month, yearStr] = dateString.split(" ");
+    const year = parseInt(yearStr, 10);
+    const monthNumber = getMonthNumber(month);
+
+    if (!monthNumber || isNaN(year)) {
+      console.error(`Invalid month or year in date string: ${dateString}`);
+      return fetchTime.toISOString();
+    }
+
+    const paddedDay = day.padStart(2, "0");
+
+    const articleDate = new Date(
+      `${year}-${monthNumber}-${paddedDay}T00:00:00`
+    );
+
+    if (isNaN(articleDate.getTime())) {
+      console.error(`Invalid date: ${dateString}`);
+      return fetchTime.toISOString();
+    }
+
+    if (articleDate > fetchTime) {
+      console.warn(`Future date detected: ${dateString}. Using current time.`);
+      return fetchTime.toISOString();
+    }
+
+    if (articleDate.toDateString() === fetchTime.toDateString()) {
+      return fetchTime.toISOString();
+    }
+
+    return new Date(
+      `${year}-${monthNumber}-${paddedDay}T23:59:59`
+    ).toISOString();
+  } catch (error) {
+    console.error(`Error parsing date: ${dateString}`, error);
+    return fetchTime.toISOString();
+  }
+}
+
 function mapAnimotakuArticle(article) {
   try {
+    const fetchTime = new Date();
+    const thumbnailImg = article.querySelector(
+      ".elementor-post__thumbnail img"
+    );
+    const thumbnailSrc = thumbnailImg
+      ? thumbnailImg.getAttribute("data-lazy-src") ||
+        thumbnailImg.getAttribute("src")
+      : null;
+
     return {
+      id: article.querySelector(".elementor-post__title a").href,
       title: article
         .querySelector(".elementor-post__title a")
         .textContent.trim(),
@@ -27,14 +118,11 @@ function mapAnimotakuArticle(article) {
       author: article
         .querySelector(".elementor-post-author")
         .textContent.trim(),
-      date: getDate(
-        article.querySelector(".elementor-post-date").textContent.trim()
+      date: getAnimotakuDate(
+        article.querySelector(".elementor-post-date").textContent.trim(),
+        fetchTime
       ),
-      thumbnail: getThumbnailUrl(
-        article
-          .querySelector(".elementor-post__thumbnail img")
-          .getAttribute("data-lazy-src")
-      ),
+      thumbnail: thumbnailSrc ? getThumbnailUrl(thumbnailSrc) : null,
       source: "Animotaku",
     };
   } catch (error) {
@@ -46,6 +134,7 @@ function mapAnimotakuArticle(article) {
 function mapAdalaArticle(article) {
   try {
     return {
+      id: article.querySelector(".penci-entry-title a").href,
       title: article.querySelector(".penci-entry-title a").textContent.trim(),
       link: article.querySelector(".penci-entry-title a").href,
       excerpt: article.querySelector(".item-content p").textContent.trim(),
@@ -64,6 +153,26 @@ function mapAdalaArticle(article) {
   }
 }
 
+function formatExcerpt(excerpt, thumbnailUrl) {
+  let cleanExcerpt = excerpt
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (thumbnailUrl) {
+    cleanExcerpt = cleanExcerpt.replace(thumbnailUrl, "").trim();
+  }
+
+  const noteIndex = cleanExcerpt.indexOf("Note :");
+  if (noteIndex !== -1) {
+    cleanExcerpt = cleanExcerpt.substring(0, noteIndex).trim();
+  }
+
+  cleanExcerpt = cleanExcerpt.replace(/\.$/, "");
+
+  return cleanExcerpt;
+}
+
 function mapPlaneteBDArticle(entry) {
   try {
     const title = entry.querySelector("title").textContent.trim();
@@ -75,6 +184,7 @@ function mapPlaneteBDArticle(entry) {
     const thumbnailUrl = getThumbnailUrlFromExcerpt(decodedExcerpt);
 
     return {
+      id: link,
       title,
       link: `https://www.planetebd.com${link}`,
       excerpt: formatExcerpt(decodedExcerpt, thumbnailUrl),
@@ -89,12 +199,107 @@ function mapPlaneteBDArticle(entry) {
   }
 }
 
-function getDate(dateString) {
+async function fetchAnimeNewsNetworkFeed(url) {
+  try {
+    console.log("Fetching Anime News Network feed...");
+    const response = await fetch(url);
+    const data = await response.json();
+    const mappedArticles = data.items
+      .map((item) => {
+        try {
+          return {
+            id: item.id,
+            title: item.title,
+            link: item.alternate?.[[1]]?.href || item.canonicalUrl || "",
+            excerpt: item.summary?.content || "",
+            author: "Anime News Network",
+            date: new Date(item.published).toISOString(),
+            thumbnail: item.visual?.url || "",
+            source: "Anime News Network",
+          };
+        } catch (error) {
+          console.error("Error mapping Anime News Network article:", error);
+          return null;
+        }
+      })
+      .filter((article) => article !== null);
+    console.log(
+      `Fetched ${mappedArticles.length} articles from Anime News Network`
+    );
+    return mappedArticles;
+  } catch (error) {
+    console.error("Error fetching Anime News Network feed:", error);
+    return [];
+  }
+}
+
+async function fetchTokyoOtakuModeFeed(url) {
+  try {
+    console.log("Fetching Tokyo Otaku Mode News feed...");
+    const response = await fetch(url);
+    const xmlText = await response.text();
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+    const items = xmlDoc.querySelectorAll("item");
+
+    const mappedArticles = Array.from(items)
+      .map((item) => {
+        try {
+          const getElementText = (selector) => {
+            const element = item.querySelector(selector);
+            return element ? element.textContent : "";
+          };
+
+          const thumbnailElement = item.querySelector(
+            "media\\:content, content"
+          );
+          const thumbnailUrl = thumbnailElement
+            ? thumbnailElement.getAttribute("url")
+            : "";
+
+          const pubDate = new Date(getElementText("pubDate"));
+
+          return {
+            id: getElementText("guid"),
+            title: getElementText("title"),
+            link: getElementText("link"),
+            excerpt: getElementText("description"),
+            author: "Tokyo Otaku Mode",
+            date: isNaN(pubDate.getTime())
+              ? new Date().toISOString()
+              : pubDate.toISOString(),
+            thumbnail: thumbnailUrl,
+            source: "Tokyo Otaku Mode News",
+          };
+        } catch (error) {
+          console.error("Error mapping Tokyo Otaku Mode News article:", error);
+          return null;
+        }
+      })
+      .filter((article) => article !== null);
+
+    console.log(
+      `Fetched ${mappedArticles.length} articles from Tokyo Otaku Mode News`
+    );
+    return mappedArticles;
+  } catch (error) {
+    console.error("Error fetching Tokyo Otaku Mode News feed:", error);
+    return [];
+  }
+}
+
+function getDate(dateString, source) {
   const [day, month, year] = dateString.split(" ");
-  return new Date(`${year}-${getMonthNumber(month)}-${day}`);
+  if (source === "Animotaku") {
+    return new Date(`${year}-${getMonthNumber(month)}-${day}T23:59:59`);
+  } else {
+    const [time = "00:00"] = dateString.split(" ").slice(-1);
+    return new Date(`${year}-${getMonthNumber(month)}-${day}T${time}`);
+  }
 }
 
 function getThumbnailUrl(thumbnail) {
+  if (!thumbnail) return null;
   return thumbnail.startsWith("//") ? `https:${thumbnail}` : thumbnail;
 }
 
@@ -114,9 +319,11 @@ function getMonthNumber(monthName) {
     "décembre",
   ];
   const monthIndex = monthNames.findIndex((month) =>
-    monthName.toLowerCase().startsWith(month)
+    monthName.toLowerCase().startsWith(month.toLowerCase())
   );
-  return (monthIndex + 1).toString().padStart(2, "0");
+  return monthIndex !== -1
+    ? (monthIndex + 1).toString().padStart(2, "0")
+    : null;
 }
 
 function getThumbnailUrlFromExcerpt(excerpt) {

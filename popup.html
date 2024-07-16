@@ -12,52 +12,78 @@
         <button id="toggle-settings" class="cogwheel"></button>
       </div>
       <div id="settings-content">
-        <div class="settings-row">
-          <label for="notification-count">Notification(s):</label>
-          <input
-            type="number"
-            id="notification-count"
-            min="1"
-            max="99"
-            value="6"
-          />
+        <div class="settings-section">
+          <h3>Notifications</h3>
+          <div class="settings-row">
+            <label for="notification-count">Nombre de notifications:</label>
+            <input
+              type="number"
+              id="notification-count"
+              min="1"
+              max="99"
+              value="6"
+            />
+          </div>
+          <div class="settings-row">
+            <label for="refresh-interval"
+              >Intervalle de rafraîchissement (minutes):</label
+            >
+            <input
+              type="number"
+              id="refresh-interval"
+              min="1"
+              max="60"
+              value="10"
+            />
+          </div>
         </div>
-        <div class="settings-row">
-          <label
-            ><input type="checkbox" id="notify-animotaku" checked />
-            Animotaku</label
-          >
-          <label
-            ><input type="checkbox" id="notify-adala" checked /> Adala
-            News</label
-          >
-          <label
-            ><input type="checkbox" id="notify-planetebd" checked /> Planète
-            BD</label
-          >
-          <label>
-            <input type="checkbox" id="enable-notifications" checked />
-            Activer les notifications
-          </label>
+        <div class="settings-section">
+          <h3>Sources</h3>
+          <div class="checkbox-grid">
+            <label
+              ><input type="checkbox" id="notify-animotaku" checked />
+              Animotaku</label
+            >
+            <label
+              ><input type="checkbox" id="notify-adala" checked /> Adala
+              News</label
+            >
+            <label
+              ><input type="checkbox" id="notify-planetebd" checked /> Planète
+              BD</label
+            >
+            <label
+              ><input type="checkbox" id="notify-animenewsnetwork" checked />
+              Anime News Network</label
+            >
+            <label
+              ><input type="checkbox" id="notify-tokyootakumode" checked />
+              Tokyo Otaku Mode News</label
+            >
+          </div>
         </div>
-        <div class="settings-row">
-          <label for="refresh-interval"
-            >Intervalle de rafraîchissement (minutes):</label
-          >
-          <input
-            type="number"
-            id="refresh-interval"
-            min="1"
-            max="60"
-            value="10"
-          />
+        <div class="settings-section">
+          <h3>Général</h3>
+          <div class="checkbox-grid">
+            <label
+              ><input type="checkbox" id="enable-notifications" checked />
+              Activer les notifications</label
+            >
+          </div>
         </div>
-        <div class="settings-row">
+        <div class="settings-row save-button-row">
           <button id="save-settings">Sauvegarder</button>
         </div>
       </div>
+
       <div id="lateral-panel" class="collapsed">
-        <div id="saved-articles"></div>
+        <div id="lateral-panel-header">
+          <h2>Articles Favoris</h2>
+          <!-- <button id="close-lateral-panel" class="close-button">×</button> -->
+        </div>
+        <div id="saved-articles-container">
+          <!-- Saved articles will be inserted here -->
+        </div>
       </div>
       <button id="toggle-lateral-panel" class="bookmark"></button>
     </div>

@@ -25,10 +25,7 @@ async function openIndexedDB() {
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains("articles")) {
-        db.createObjectStore("articles", {
-          keyPath: "id",
-          autoIncrement: true,
-        });
+        db.createObjectStore("articles", { keyPath: "id" });
       }
       if (!db.objectStoreNames.contains("lastFetchTime")) {
         db.createObjectStore("lastFetchTime", { keyPath: "source" });
@@ -40,6 +37,7 @@ async function openIndexedDB() {
     };
 
     request.onerror = (event) => {
+      console.error("Error opening IndexedDB:", event.target.error);
       reject(event.target.error);
     };
   });
@@ -81,55 +79,74 @@ async function getLastFetchTimeFromCache() {
 }
 
 async function saveArticlesToCache(articles) {
-  const db = await openIndexedDB();
-  const transaction = db.transaction("articles", "readwrite");
-  const store = transaction.objectStore("articles");
+  try {
+    const db = await openIndexedDB();
+    const transaction = db.transaction("articles", "readwrite");
+    const store = transaction.objectStore("articles");
 
-  articles.forEach((article) => {
-    store.put(article);
-  });
+    articles.forEach((article) => {
+      store.put(article);
+    });
 
-  return transaction.complete;
+    return transaction.complete;
+  } catch (error) {
+    console.error("Error saving articles to cache:", error);
+  }
 }
 
 async function getArticlesFromCache() {
-  const db = await openIndexedDB();
-  const transaction = db.transaction("articles", "readonly");
-  const store = transaction.objectStore("articles");
+  try {
+    const db = await openIndexedDB();
+    const transaction = db.transaction("articles", "readonly");
+    const store = transaction.objectStore("articles");
 
-  return new Promise((resolve, reject) => {
-    const request = store.getAll();
+    return new Promise((resolve, reject) => {
+      const request = store.getAll();
 
-    request.onsuccess = (event) => {
-      resolve(event.target.result);
-    };
+      request.onsuccess = (event) => {
+        const articles = event.target.result;
+        console.log(`Retrieved ${articles.length} articles from cache`);
+        resolve(articles);
+      };
 
-    request.onerror = (event) => {
-      reject(event.target.error);
-    };
-  });
+      request.onerror = (event) => {
+        console.error("Error getting articles from cache:", event.target.error);
+        reject(event.target.error);
+      };
+    });
+  } catch (error) {
+    console.error("Error opening IndexedDB:", error);
+    return [];
+  }
 }
 
 async function checkForNewArticles() {
   console.log("Checking for new articles...");
   const settings = await browser.storage.sync.get({
-    notificationCount: 6,
+    notificationCount: 3,
     notifyAnimotaku: true,
     notifyAdala: true,
     notifyPlaneteBD: true,
-    enableNotifications: true,
+    notifyAnimeNewsNetwork: true,
+    notifyTokyoOtakuMode: true,
+    // enableNotifications: false,
   });
 
   const fetchPromises = [];
 
   if (settings.notifyAnimotaku) {
     fetchPromises.push(
-      fetchNews(
-        "Animotaku",
-        "https://animotaku.fr/category/actualite/",
-        ".elementor-post",
-        mapAnimotakuArticle
-      )
+      Promise.all([
+        fetchNews(
+          "Animotaku",
+          "https://animotaku.fr/category/actualite/",
+          ".elementor-post",
+          mapAnimotakuArticle
+        ),
+        fetchRSSFeed("https://animotaku.fr/feed/"),
+      ]).then(([scrapedArticles, rssArticles]) => {
+        return mergeAnimotakuData(scrapedArticles, rssArticles);
+      })
     );
   }
 
@@ -155,6 +172,20 @@ async function checkForNewArticles() {
     );
   }
 
+  if (settings.notifyAnimeNewsNetwork) {
+    fetchPromises.push(
+      fetchAnimeNewsNetworkFeed(
+        "https://api.feedly.com/v3/mixes/contents?streamId=feed/http://www.animenewsnetwork.com/newsfeed/rss.xml&count=15&hours=16&ck=1720967487339&ct=feedly.desktop&cv=31.0.2333"
+      )
+    );
+  }
+
+  if (settings.notifyTokyoOtakuMode) {
+    fetchPromises.push(
+      fetchTokyoOtakuModeFeed("https://otakumode.com/news/feed")
+    );
+  }
+
   const allArticles = (await Promise.all(fetchPromises)).flat();
   allArticles.sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -170,15 +201,31 @@ async function checkForNewArticles() {
 
   const newArticles = allArticles.filter((article) => {
     const lastFetchTimeForSource = lastFetchTime[article.source];
-    return (
-      !lastFetchTimeForSource ||
-      new Date(article.date) > new Date(lastFetchTimeForSource)
-    );
+    const articleDate = new Date(article.date);
+
+    if (!lastFetchTimeForSource) {
+      return true;
+    }
+
+    const lastFetchDate = new Date(lastFetchTimeForSource);
+
+    if (article.source === "Anime News Network") {
+      return articleDate > lastFetchDate;
+    } else if (article.source === "Animotaku") {
+      const animotakuArticleDate = new Date(articleDate.setHours(0, 0, 0, 0));
+      const animotakuLastFetchDate = new Date(
+        lastFetchDate.setHours(0, 0, 0, 0)
+      );
+      return animotakuArticleDate > animotakuLastFetchDate;
+    } else if (article.source === "Tokyo Otaku Mode News") {
+      return articleDate > lastFetchDate;
+    } else {
+      return articleDate > lastFetchDate;
+    }
   });
 
   const latestNewArticles = newArticles.slice(0, settings.notificationCount);
 
-  // Update the badge count
   await updateBadgeCount(newArticles.length);
 
   const { enableNotifications } = await browser.storage.sync.get({
@@ -196,7 +243,13 @@ async function checkForNewArticles() {
     await new Promise((resolve) => setTimeout(resolve, 3000));
   }
 
-  for (const source of ["Animotaku", "Adala News", "Planète BD"]) {
+  for (const source of [
+    "Animotaku",
+    "Adala News",
+    "Planète BD",
+    "Anime News Network",
+    "Tokyo Otaku Mode News",
+  ]) {
     const latestArticle = allArticles.find(
       (article) => article.source === source
     );
@@ -212,21 +265,59 @@ async function checkForNewArticles() {
   }
 }
 
+function mergeAnimotakuData(scrapedArticles, rssArticles) {
+  return scrapedArticles.map((scrapedArticle) => {
+    try {
+      const matchingRssArticle = rssArticles.find(
+        (rssArticle) => rssArticle.link === scrapedArticle.link
+      );
+      if (matchingRssArticle) {
+        return {
+          ...scrapedArticle,
+          category: matchingRssArticle.category,
+          guid: matchingRssArticle.guid,
+          description: matchingRssArticle.description,
+
+          date:
+            matchingRssArticle.pubDate &&
+            !isNaN(matchingRssArticle.pubDate.getTime())
+              ? matchingRssArticle.pubDate.toISOString()
+              : scrapedArticle.date,
+        };
+      }
+      return scrapedArticle;
+    } catch (error) {
+      console.error("Error merging Animotaku data:", error);
+      return scrapedArticle;
+    }
+  });
+}
+function truncateText(text, maxLength) {
+  if (text.length <= maxLength) return text;
+  return text.substr(0, maxLength - 3) + "...";
+}
+
 function showNotification(article) {
-  const notificationId = `animotaku-adala-news-${Date.now()}`;
+  const notificationId = `anime-news-${Date.now()}`;
 
-  const truncatedTitle = article.title.split(" ").slice(0, 6).join(" ");
-  const titleWithSource = `${truncatedTitle}${
-    article.title.split(" ").length > 6 ? "..." : ""
-  } \n(${article.source})`;
+  console.log("Showing notification for article:", article);
 
-  console.log(`Showing notification for ${article.title}`);
+  const truncatedTitle = article.title;
+  let cleanExcerpt = article.excerpt;
+  if (article.source === "Anime News Network") {
+    cleanExcerpt = cleanExcerpt.replace(/<cite>|<\/cite>/g, "");
+  }
+
+  const maxExcerptLength = 109;
+  const truncatedExcerpt = truncateText(cleanExcerpt, maxExcerptLength);
+  const excerptWithSource = `${truncatedExcerpt}\n(${article.source})`;
+
   try {
     browser.notifications.create(notificationId, {
       type: "basic",
-      iconUrl: article.thumbnail,
-      title: titleWithSource,
-      message: article.excerpt,
+      iconUrl: article.thumbnail || "default_icon.png",
+      title: truncatedTitle,
+      message: excerptWithSource,
     });
   } catch (error) {
     console.error("Error showing notification:", error);
@@ -246,11 +337,9 @@ browser.notifications.onClicked.addListener(function (notificationId) {
   }
 });
 
-checkForNewArticles();
-
 let intervalId;
 async function startInterval() {
-  const settings = await browser.storage.sync.get({ refreshInterval: 1 });
+  const settings = await browser.storage.sync.get({ refreshInterval: 10 });
   clearInterval(intervalId);
   intervalId = setInterval(
     checkForNewArticles,
@@ -297,5 +386,4 @@ browser.runtime.onMessage.addListener((message) => {
     resetBadgeCount();
   }
 });
-
-// checkForNewArticles();
+checkForNewArticles();

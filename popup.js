@@ -5,6 +5,12 @@ async function saveSettings() {
     const notifyAnimotaku = document.getElementById("notify-animotaku").checked;
     const notifyAdala = document.getElementById("notify-adala").checked;
     const notifyPlaneteBD = document.getElementById("notify-planetebd").checked;
+    const notifyAnimeNewsNetwork = document.getElementById(
+      "notify-animenewsnetwork"
+    ).checked;
+    const notifyTokyoOtakuMode = document.getElementById(
+      "notify-tokyootakumode"
+    ).checked;
     const enableNotifications = document.getElementById(
       "enable-notifications"
     ).checked;
@@ -18,6 +24,8 @@ async function saveSettings() {
       notifyAnimotaku,
       notifyAdala,
       notifyPlaneteBD,
+      notifyAnimeNewsNetwork,
+      notifyTokyoOtakuMode,
       refreshInterval,
       enableNotifications,
     });
@@ -32,10 +40,12 @@ async function saveSettings() {
 async function loadSettings() {
   try {
     const settings = await browser.storage.sync.get({
-      notificationCount: 6,
+      notificationCount: 3,
       notifyAnimotaku: true,
       notifyAdala: true,
       notifyPlaneteBD: true,
+      notifyAnimeNewsNetwork: true,
+      notifyTokyoOtakuMode: true,
       refreshInterval: 10,
       enableNotifications: true,
     });
@@ -47,6 +57,10 @@ async function loadSettings() {
     document.getElementById("notify-adala").checked = settings.notifyAdala;
     document.getElementById("notify-planetebd").checked =
       settings.notifyPlaneteBD;
+    document.getElementById("notify-animenewsnetwork").checked =
+      settings.notifyAnimeNewsNetwork;
+    document.getElementById("notify-tokyootakumode").checked =
+      settings.notifyTokyoOtakuMode;
     document.getElementById("refresh-interval").value =
       settings.refreshInterval;
     document.getElementById("enable-notifications").checked =
@@ -111,11 +125,21 @@ async function getArticlesFromCache() {
   });
 }
 
+function sortArticles(articles) {
+  return articles.sort((a, b) => {
+    const dateA = new Date(a.date);
+    const dateB = new Date(b.date);
+
+    return dateB.getTime() - dateA.getTime();
+  });
+}
+
 function addArticleToLateralPanel(article) {
   const savedArticles = JSON.parse(localStorage.getItem("savedArticles")) || [];
   if (
     !savedArticles.some((savedArticle) => savedArticle.link === article.link)
   ) {
+    article.bookmarkedAt = Date.now();
     savedArticles.push(article);
     localStorage.setItem("savedArticles", JSON.stringify(savedArticles));
     displaySavedArticles();
@@ -135,8 +159,18 @@ function removeArticleFromLateralPanel(article) {
 }
 
 function displaySavedArticles() {
-  const savedArticlesContainer = document.getElementById("saved-articles");
-  const savedArticles = JSON.parse(localStorage.getItem("savedArticles")) || [];
+  const savedArticlesContainer = document.getElementById(
+    "saved-articles-container"
+  );
+  let savedArticles = JSON.parse(localStorage.getItem("savedArticles")) || [];
+
+  if (savedArticles.length === 0) {
+    savedArticlesContainer.innerHTML =
+      "<p class='no-saved-articles'>Aucun article sauvegardé</p>";
+    return;
+  }
+
+  savedArticles.sort((a, b) => (b.bookmarkedAt || 0) - (a.bookmarkedAt || 0));
 
   savedArticlesContainer.innerHTML = savedArticles
     .map(
@@ -145,12 +179,12 @@ function displaySavedArticles() {
           <img src="${article.thumbnail}" alt="${article.title}">
           <div class="saved-article-content">
             <h3>${article.title}</h3>
-            <p class="meta">${formatDate(article.date)}</p>
+            <p class="meta">${formatDate(article.date)} | ${article.source}</p>
             <p>${article.excerpt}</p>
+            <button class="remove-article" data-link="${
+              article.link
+            }">Supprimer</button>
           </div>
-          <button class="remove-article" data-link="${
-            article.link
-          }">Supprimer</button>
         </div>
       `
     )
@@ -209,46 +243,13 @@ document.addEventListener("click", (event) => {
   }
 });
 
-async function fetchLatestArticles() {
-  const [animotakuArticles, adalaArticles, planeteBDArticles] =
-    await Promise.all([
-      fetchNews(
-        "Animotaku",
-        "https://animotaku.fr/category/actualite/",
-        ".elementor-post",
-        mapAnimotakuArticle
-      ),
-      fetchNews(
-        "Adala News",
-        "https://adala-news.fr/",
-        ".list-post",
-        mapAdalaArticle
-      ),
-      fetchNews(
-        "Planète BD",
-        "https://www.planetebd.com/planete-bd/manga",
-        "entry",
-        mapPlaneteBDArticle
-      ),
-    ]);
-
-  let allArticles = [
-    ...animotakuArticles,
-    ...adalaArticles,
-    ...planeteBDArticles,
-  ];
-
-  allArticles = await filterArticlesBySettings(allArticles);
-  allArticles.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  return allArticles;
-}
-
 async function filterArticlesBySettings(articles) {
   const settings = await browser.storage.sync.get({
     notifyAnimotaku: true,
     notifyAdala: true,
     notifyPlaneteBD: true,
+    notifyAnimeNewsNetwork: true,
+    notifyTokyoOtakuMode: true,
   });
 
   return articles.filter((article) => {
@@ -260,6 +261,12 @@ async function filterArticlesBySettings(articles) {
     }
     if (article.source === "Planète BD") {
       return settings.notifyPlaneteBD;
+    }
+    if (article.source === "Anime News Network") {
+      return settings.notifyAnimeNewsNetwork;
+    }
+    if (article.source === "Tokyo Otaku Mode News") {
+      return settings.notifyTokyoOtakuMode;
     }
     return true;
   });
@@ -276,7 +283,11 @@ async function displayNews(startIndex = 0, count = 20) {
     }
 
     const allArticles = await filterArticlesBySettings(cachedArticles);
-    const articlesToDisplay = allArticles.slice(startIndex, startIndex + count);
+    const sortedArticles = sortArticles(allArticles);
+    const articlesToDisplay = sortedArticles.slice(
+      startIndex,
+      startIndex + count
+    );
     const articlesContainer = document.getElementById("articles");
 
     if (startIndex === 0) {
@@ -287,7 +298,7 @@ async function displayNews(startIndex = 0, count = 20) {
       .map(createArticleElement)
       .join("");
 
-    if (startIndex + count < allArticles.length) {
+    if (startIndex + count < sortedArticles.length) {
       const showMoreButton = document.createElement("button");
       showMoreButton.textContent = "Afficher Plus";
       showMoreButton.classList.add("show-more");
