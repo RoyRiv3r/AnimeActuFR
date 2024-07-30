@@ -11,6 +11,7 @@ async function saveSettings() {
     const notifyTokyoOtakuMode = document.getElementById(
       "notify-tokyootakumode"
     ).checked;
+    const notifyCBR = document.getElementById("notify-cbr").checked;
     const enableNotifications = document.getElementById(
       "enable-notifications"
     ).checked;
@@ -26,11 +27,12 @@ async function saveSettings() {
       notifyPlaneteBD,
       notifyAnimeNewsNetwork,
       notifyTokyoOtakuMode,
+      notifyCBR,
       refreshInterval,
       enableNotifications,
     });
 
-    console.log("Settings saved successfully.");
+    // console.log("Settings saved successfully.");
     displayNews();
   } catch (error) {
     console.error("Error saving settings:", error);
@@ -46,6 +48,7 @@ async function loadSettings() {
       notifyPlaneteBD: true,
       notifyAnimeNewsNetwork: true,
       notifyTokyoOtakuMode: true,
+      notifyCBR: true,
       refreshInterval: 10,
       enableNotifications: true,
     });
@@ -61,11 +64,12 @@ async function loadSettings() {
       settings.notifyAnimeNewsNetwork;
     document.getElementById("notify-tokyootakumode").checked =
       settings.notifyTokyoOtakuMode;
+    document.getElementById("notify-cbr").checked = settings.notifyCBR;
     document.getElementById("refresh-interval").value =
       settings.refreshInterval;
     document.getElementById("enable-notifications").checked =
       settings.enableNotifications;
-    console.log("Settings loaded successfully.");
+    // console.log("Settings loaded successfully.");
   } catch (error) {
     console.error("Error loading settings:", error);
   }
@@ -180,7 +184,6 @@ function displaySavedArticles() {
           <div class="saved-article-content">
             <h3>${article.title}</h3>
             <p class="meta">${formatDate(article.date)} | ${article.source}</p>
-            <p>${article.excerpt}</p>
             <button class="remove-article" data-link="${
               article.link
             }">Supprimer</button>
@@ -318,20 +321,17 @@ async function displayNews(startIndex = 0, count = 20) {
 function createArticleElement(article) {
   const formattedDate = formatDate(article.date);
   const escapedArticleJSON = JSON.stringify(article).replace(/'/g, "&#39;");
+  const authorPart = article.author ? `${article.author} | ` : "";
 
   return `
     <div class="article" data-source="${article.source}">
       <a href="${article.link}" target="_blank">
         <div class="article-image">
-          <img src="placeholder.jpg" data-src="${article.thumbnail}" alt="${
-    article.title
-  }" class="lazy-load">
+          <img src="placeholder.jpg" data-src="${article.thumbnail}" alt="${article.title}" class="lazy-load">
         </div>
         <div class="article-content">
           <h2>${article.title}</h2>
-          <p class="meta">${article.author} | ${formatDate(article.date)} | ${
-    article.source
-  }</p>
+          <p class="meta">${authorPart}${formattedDate} | ${article.source}</p>
           <p>${article.excerpt}</p>
         </div>
       </a>

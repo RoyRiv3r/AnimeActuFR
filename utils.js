@@ -1,7 +1,7 @@
 // utils.js
 async function fetchNews(source, url, selector, mapper) {
   try {
-    console.log(`Fetching news from ${source}...`);
+    // console.log(`Fetching news from ${source}...`);
     const response = await fetch(url);
     const data = await response.text();
     const parser = new DOMParser();
@@ -13,7 +13,7 @@ async function fetchNews(source, url, selector, mapper) {
       .map((article) => mapper(article, fetchTime))
       .filter((article) => article !== null);
 
-    console.log(`Fetched ${mappedArticles.length} articles from ${source}`);
+    // console.log(`Fetched ${mappedArticles.length} articles from ${source}`);
     return mappedArticles;
   } catch (error) {
     console.error(`Error fetching ${source} news:`, error);
@@ -51,6 +51,57 @@ async function fetchRSSFeed(url) {
       .filter((item) => item.title && item.link);
   } catch (error) {
     console.error("Error fetching RSS feed:", error);
+    return [];
+  }
+}
+
+async function fetchCBRFeed(url) {
+  try {
+    const response = await fetch(url);
+    const xmlText = await response.text();
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+    const items = xmlDoc.querySelectorAll("item");
+
+    const mappedArticles = Array.from(items)
+      .map((item) => {
+        try {
+          const getElementText = (selector) => {
+            const element = item.querySelector(selector);
+            return element
+              ? element.textContent.trim().replace(/\s+/g, " ")
+              : "";
+          };
+
+          const enclosureElement = item.querySelector("enclosure");
+          const thumbnailUrl = enclosureElement
+            ? enclosureElement.getAttribute("url")
+            : "";
+
+          const pubDate = new Date(getElementText("pubDate"));
+
+          return {
+            id: getElementText("guid"),
+            title: getElementText("title"),
+            link: getElementText("link"),
+            excerpt: getElementText("description"),
+            author: getElementText("dc\\:creator"),
+            date: isNaN(pubDate.getTime())
+              ? new Date().toISOString()
+              : pubDate.toISOString(),
+            thumbnail: thumbnailUrl,
+            source: "CBR",
+          };
+        } catch (error) {
+          console.error("Error mapping CBR article:", error);
+          return null;
+        }
+      })
+      .filter((article) => article !== null);
+
+    return mappedArticles;
+  } catch (error) {
+    console.error("Error fetching CBR feed:", error);
     return [];
   }
 }
@@ -201,7 +252,7 @@ function mapPlaneteBDArticle(entry) {
 
 async function fetchAnimeNewsNetworkFeed(url) {
   try {
-    console.log("Fetching Anime News Network feed...");
+    // console.log("Fetching Anime News Network feed...");
     const response = await fetch(url);
     const data = await response.json();
     const mappedArticles = data.items
@@ -212,7 +263,7 @@ async function fetchAnimeNewsNetworkFeed(url) {
             title: item.title,
             link: item.alternate?.[[1]]?.href || item.canonicalUrl || "",
             excerpt: item.summary?.content || "",
-            author: "Anime News Network",
+            author: "",
             date: new Date(item.published).toISOString(),
             thumbnail: item.visual?.url || "",
             source: "Anime News Network",
@@ -223,9 +274,9 @@ async function fetchAnimeNewsNetworkFeed(url) {
         }
       })
       .filter((article) => article !== null);
-    console.log(
-      `Fetched ${mappedArticles.length} articles from Anime News Network`
-    );
+    // console.log(
+    //   `Fetched ${mappedArticles.length} articles from Anime News Network`
+    // );
     return mappedArticles;
   } catch (error) {
     console.error("Error fetching Anime News Network feed:", error);
@@ -235,7 +286,7 @@ async function fetchAnimeNewsNetworkFeed(url) {
 
 async function fetchTokyoOtakuModeFeed(url) {
   try {
-    console.log("Fetching Tokyo Otaku Mode News feed...");
+    // console.log("Fetching Tokyo Otaku Mode News feed...");
     const response = await fetch(url);
     const xmlText = await response.text();
     const parser = new DOMParser();
@@ -278,9 +329,9 @@ async function fetchTokyoOtakuModeFeed(url) {
       })
       .filter((article) => article !== null);
 
-    console.log(
-      `Fetched ${mappedArticles.length} articles from Tokyo Otaku Mode News`
-    );
+    // console.log(
+    //   `Fetched ${mappedArticles.length} articles from Tokyo Otaku Mode News`
+    // );
     return mappedArticles;
   } catch (error) {
     console.error("Error fetching Tokyo Otaku Mode News feed:", error);

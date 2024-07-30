@@ -1,8 +1,9 @@
+// background.js
 async function updateRefreshInterval() {
   try {
     const settings = await browser.storage.sync.get({ refreshInterval: 10 });
     refreshInterval = settings.refreshInterval * 60 * 1000;
-    console.log("Refresh interval updated to:", refreshInterval);
+    // console.log("Refresh interval updated to:", refreshInterval);
   } catch (error) {
     console.error("Error updating refresh interval:", error);
   }
@@ -105,7 +106,7 @@ async function getArticlesFromCache() {
 
       request.onsuccess = (event) => {
         const articles = event.target.result;
-        console.log(`Retrieved ${articles.length} articles from cache`);
+        // console.log(`Retrieved ${articles.length} articles from cache`);
         resolve(articles);
       };
 
@@ -121,13 +122,14 @@ async function getArticlesFromCache() {
 }
 
 async function checkForNewArticles() {
-  console.log("Checking for new articles...");
+  // console.log("Checking for new articles...");
   const settings = await browser.storage.sync.get({
     notificationCount: 3,
     notifyAnimotaku: true,
     notifyAdala: true,
     notifyPlaneteBD: true,
     notifyAnimeNewsNetwork: true,
+    notifyCBR: true,
     notifyTokyoOtakuMode: true,
     // enableNotifications: false,
   });
@@ -186,13 +188,19 @@ async function checkForNewArticles() {
     );
   }
 
+  if (settings.notifyCBR) {
+    fetchPromises.push(
+      fetchCBRFeed("https://www.cbr.com/feed/category/anime/")
+    );
+  }
+
   const allArticles = (await Promise.all(fetchPromises)).flat();
   allArticles.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   // Save the updated articles to the cache
   try {
     await saveArticlesToCache(allArticles);
-    console.log("Cached articles updated.");
+    // console.log("Cached articles updated.");
   } catch (error) {
     console.error("Error saving cached articles:", error);
   }
@@ -233,7 +241,7 @@ async function checkForNewArticles() {
   });
 
   if (!enableNotifications) {
-    console.log("Notifications are disabled. Skipping showing notifications.");
+    // console.log("Notifications are disabled. Skipping showing notifications.");
     return;
   }
 
@@ -249,6 +257,7 @@ async function checkForNewArticles() {
     "Planète BD",
     "Anime News Network",
     "Tokyo Otaku Mode News",
+    "CBR",
   ]) {
     const latestArticle = allArticles.find(
       (article) => article.source === source
@@ -300,7 +309,7 @@ function truncateText(text, maxLength) {
 function showNotification(article) {
   const notificationId = `anime-news-${Date.now()}`;
 
-  console.log("Showing notification for article:", article);
+  // console.log("Showing notification for article:", article);
 
   const truncatedTitle = article.title;
   let cleanExcerpt = article.excerpt;
@@ -345,7 +354,7 @@ async function startInterval() {
     checkForNewArticles,
     settings.refreshInterval * 60 * 1000
   );
-  console.log("Interval started with interval:", settings.refreshInterval);
+  // console.log("Interval started with interval:", settings.refreshInterval);
 }
 startInterval();
 
