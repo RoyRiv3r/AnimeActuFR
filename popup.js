@@ -253,6 +253,7 @@ async function filterArticlesBySettings(articles) {
     notifyPlaneteBD: true,
     notifyAnimeNewsNetwork: true,
     notifyTokyoOtakuMode: true,
+    notifyCBR: true,
   });
 
   return articles.filter((article) => {
@@ -270,6 +271,9 @@ async function filterArticlesBySettings(articles) {
     }
     if (article.source === "Tokyo Otaku Mode News") {
       return settings.notifyTokyoOtakuMode;
+    }
+    if (article.source === "CBR") {
+      return settings.notifyCBR;
     }
     return true;
   });
